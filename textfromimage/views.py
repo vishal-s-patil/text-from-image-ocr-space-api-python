@@ -2,6 +2,7 @@ from django.shortcuts import render, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
 import requests
+from PIL import Image, ImageDraw, ImageFont
 import json
 import ocrspace
 
@@ -22,7 +23,7 @@ def gettextlocal(req):
         fs.save(file.name, file)
 
         options = {
-                    'isOverlayRequired': False,
+                    'isOverlayRequired': True,
                     'apikey': 'K86490431088957'
                 }
         with open('uploads/' + file.name, 'rb') as f:
@@ -30,7 +31,12 @@ def gettextlocal(req):
                               files={file.name: f},
                               data=options,
                             )
+
         content = json.loads(r.content.decode())
+
+        with open("uploads/sample.json", "w") as outfile:
+            json.dump(content, outfile)
+
         print(content['ParsedResults'][0]['ParsedText'])
         return HttpResponse(content['ParsedResults'][0]['ParsedText'])
     else:
@@ -96,3 +102,41 @@ def gettexturl(req):
 #         return HttpResponse(text)
 #     else:
 #         return HttpResponse('method should be post')
+
+@csrf_exempt
+def getoverlay(req):
+    if req.method == "POST":
+        TINT_COLOR = (255, 255, 0)
+        TRANSPARENCY = .70  # Degree of transparency, 0-100%
+        OPACITY = int(255 * TRANSPARENCY)
+
+        img = Image.open('uploads/1.png')
+        img = img.convert("RGBA")
+        overlay = Image.new('RGBA', img.size, TINT_COLOR+(0,))
+        draw = ImageDraw.Draw(overlay)
+
+        with open('uploads/sample.json', encoding="utf8") as data_file:
+            data = json.load(data_file)
+
+        for pr in data["ParsedResults"]:
+            for line in pr["TextOverlay"]["Lines"]:
+                for w in line["Words"]:
+                    x1 = (w["Left"], w["Top"])
+                    x2 = (x1[0] + w["Width"], x1[1] + w["Height"])
+
+                    font_size = abs(x1[1] - x2[1])
+                    unicode_font_name = "./Arial Unicode.ttf"
+                    font = ImageFont.load_default()
+
+                    draw.rectangle((x1, x2), fill=TINT_COLOR+(OPACITY,))
+
+                    text = w["WordText"]
+                    draw.text(x1, text, fill=(255, 0, 0, 255), font=font)
+
+                    img = Image.alpha_composite(img, overlay)
+
+                    img.save('uploads/overlay.png')
+
+        img.show()
+
+    return HttpResponse('success')
