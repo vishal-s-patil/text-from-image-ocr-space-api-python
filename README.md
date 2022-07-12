@@ -1,0 +1,1 @@
+# text-from-image-ocr-space-api-python
