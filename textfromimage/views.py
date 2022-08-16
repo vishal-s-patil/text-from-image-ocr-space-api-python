@@ -4,6 +4,9 @@ from django.core.files.storage import FileSystemStorage
 import requests
 from PIL import Image, ImageDraw, ImageFont
 import json
+import re
+from nltk import ne_chunk, pos_tag, word_tokenize
+from nltk.tree import Tree
 import ocrspace
 
 
@@ -37,8 +40,24 @@ def gettextlocal(req):
         with open("uploads/sample.json", "w") as outfile:
             json.dump(content, outfile)
 
-        print(content['ParsedResults'][0]['ParsedText'])
-        return HttpResponse(content['ParsedResults'][0]['ParsedText'])
+        text = content['ParsedResults'][0]['ParsedText']
+        print("text :", text)
+        name = ''
+        nltk_results = ne_chunk(pos_tag(word_tokenize(text)))
+        for nltk_result in nltk_results:
+            if type(nltk_result) == Tree:
+                for nltk_result_leaf in nltk_result.leaves():
+                    print(nltk_result.label())
+                    if(nltk_result.label() == 'PERSON'):
+                        name += nltk_result_leaf[0] + ' '
+                        break
+
+        emails = re.findall(r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+", text)
+        print("emals : ", emails)
+        res = "Name: " + name + "\n" + "email: " + emails[0]
+        print(res)
+
+        return HttpResponse(res)
     else:
         return HttpResponse('method should be post')
 
